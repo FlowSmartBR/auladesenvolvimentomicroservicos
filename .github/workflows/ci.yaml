@@ -46,18 +46,9 @@ jobs:
 
       # Autenticar no Kubernetes (usando kubeconfig ou token)
       - name: Authenticate to Kubernetes
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { exec } = require("child_process");
-            exec("kubectl config set-cluster <CLUSTER_NAME> --server=https://<K8S_SERVER_URL> --certificate-authority=<CA_CERT>", (error, stdout, stderr) => {
-              if (error) {
-                core.setFailed(`exec error: ${error}`);
-                return;
-              }
-              console.log(`stdout: ${stdout}`);
-              console.error(`stderr: ${stderr}`);
-            });
+        run: |
+          echo "$KUBE_CONFIG" > kubeconfig.yaml
+          kubectl --kubeconfig=kubeconfig.yaml config use-context <CLUSTER_CONTEXT>
 
       # Criar o Deployment do Nginx
       - name: Create Deployment
@@ -80,4 +71,3 @@ jobs:
       # Limpeza do Kubernetes (opcional)
       - name: Cleanup
         run: kubectl delete deployment nginx
-
