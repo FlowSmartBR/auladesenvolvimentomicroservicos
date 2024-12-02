@@ -21,10 +21,62 @@ jobs:
         with:
           node-version: "18"
 
-      # Instalar dependências
+      # Instalar dependências do Node.js
       - name: Install dependencies
         run: npm install
 
-      # Rodar testes
-      - name: Run tests
+      # Rodar testes do Node.js
+      - name: Run Node.js tests
         run: npm test
+
+  kubernetes-deployment:
+    runs-on: ubuntu-latest
+    needs: test  # Garante que o job de testes Node.js seja concluído antes do teste do Kubernetes
+
+    steps:
+      # Checkout do código novamente
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Configuração do kubectl
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
+        with:
+          version: 'v1.24.0'
+
+      # Autenticar no Kubernetes (usando kubeconfig ou token)
+      - name: Authenticate to Kubernetes
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { exec } = require("child_process");
+            exec("kubectl config set-cluster <CLUSTER_NAME> --server=https://<K8S_SERVER_URL> --certificate-authority=<CA_CERT>", (error, stdout, stderr) => {
+              if (error) {
+                console.error(`exec error: ${error}`);
+                return;
+              }
+              console.log(`stdout: ${stdout}`);
+              console.error(`stderr: ${stderr}`);
+            });
+
+      # Criar o Deployment do Nginx
+      - name: Create Deployment
+        run: |
+          kubectl create deployment nginx --image=nginx --replicas=3
+
+      # Verificar se os pods do Nginx estão rodando
+      - name: Verify Pods are running
+        run: |
+          kubectl get pods
+          kubectl rollout status deployment/nginx
+
+      # Expor o serviço e verificar se está acessível (opcional)
+      - name: Expose service and verify access
+        run: |
+          kubectl expose deployment nginx --type=LoadBalancer --name=nginx-service
+          kubectl get svc nginx-service
+          # Aqui você pode adicionar mais comandos de teste, como curl ou outros, para verificar o funcionamento do serviço
+
+      # Limpeza do Kubernetes (opcional)
+      - name: Cleanup
+        run: kubectl delete deployment nginx
