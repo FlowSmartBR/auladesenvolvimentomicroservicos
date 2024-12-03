@@ -29,45 +29,28 @@ jobs:
       - name: Run Node.js tests
         run: npm test
 
-  kubernetes-deployment:
-    runs-on: ubuntu-latest
-    needs: test  # Garante que o job de testes Node.js seja concluído antes do teste do Kubernetes
-
-    steps:
-      # Checkout do código novamente
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Configuração do kubectl
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
+ 
+# 2. Login no Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
         with:
-          version: 'v1.24.0'
+          username: ${{ secrets.docker }}  # Configurado nos Secrets
+          password: ${{ secrets.passaword }}  # Configurado nos Secrets
 
-      # Autenticar no Kubernetes (usando kubeconfig ou token)
-      - name: Authenticate to Kubernetes
+    # 3. Build da imagem Docker 
+      - name: Build Docker image
         run: |
-          echo "$KUBE_CONFIG" > kubeconfig.yaml
-          kubectl --kubeconfig=kubeconfig.yaml config use-context <CLUSTER_CONTEXT>
+          docker build -t meu-usuario/nginx-exemplo:latest .
 
-      # Criar o Deployment do Nginx
-      - name: Create Deployment
+    # 4. Teste básico da imagem
+      - name: Test Docker image
         run: |
-          kubectl create deployment nginx --image=nginx --replicas=3
+          docker run -d --name nginx-test -p 8080:80 meu-usuario/nginx-exemplo:latest
+          sleep 5  # Aguarda o contêiner inicializar
+          curl -f http://localhost:8080  # Testa a página padrão do NGINX
+          docker stop nginx-test && docker rm nginx-test  # Para e remove o contêiner
 
-      # Verificar se os pods do Nginx estão rodando
-      - name: Verify Pods are running
+    # 5. Push da imagem para o Docker Hub
+      - name: Push Docker image
         run: |
-          kubectl get pods
-          kubectl rollout status deployment/nginx
-
-      # Expor o serviço e verificar se está acessível (opcional)
-      - name: Expose service and verify access
-        run: |
-          kubectl expose deployment nginx --type=LoadBalancer --name=nginx-service
-          kubectl get svc nginx-service
-          # Aqui você pode adicionar mais comandos de teste, como curl ou outros, para verificar o funcionamento do serviço
-
-      # Limpeza do Kubernetes (opcional)
-      - name: Cleanup
-        run: kubectl delete deployment nginx
+          docker push meu-usuario/nginx-exemplo:latest
